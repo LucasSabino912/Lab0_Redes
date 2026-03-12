@@ -275,7 +275,17 @@ def dns_resolve(hostname: str) -> str:
     # 2. Construir el mensaje de consulta con _dns_build_query(hostname, query_id).
     # 3. Crear socket UDP (AF_INET, SOCK_DGRAM), settimeout razonable, sendto(query, (DNS_SERVER, DNS_PORT)), recvfrom(512).
     # 4. Cerrar el socket y devolver _dns_parse_response(data, query_id) que extrae la IP del primer registro A.
-    raise NotImplementedError("Implementar cliente DNS (UDP, Quad9 9.9.9.9, RFC 1035).")
+    
+    query_id = random.randint(0, 65535)
+    query = _dns_build_query(hostname, query_id)
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.settimeout(5)
+    sock.sendto(query, (DNS_SERVER, DNS_PORT))
+    data, _ = sock.recvfrom(512)
+    sock.close()
+
+    return _dns_parse_response(data, query_id)
 
 
 def connect_to_server(server_name: str, port: int = HTTP_PORT) -> socket.socket:
@@ -305,7 +315,17 @@ def connect_to_server(server_name: str, port: int = HTTP_PORT) -> socket.socket:
     # Paso 1: resolver el nombre con dns_resolve(server_name) y guardar la IP en una variable.
     # Paso 2: imprimir en stderr "Hostname: ..." e "IP resuelta: ..." (el enunciado lo exige).
     # Paso 3: crear socket TCP (AF_INET, SOCK_STREAM), opcional settimeout, connect((ip_address, port)), devolver el socket.
-    ...
+    
+    ip_address = dns_resolve(server_name)
+
+    sys.stderr.write("Hostname: %s\n" % server_name)
+    sys.stderr.write("IP resuelta: %s\n" % ip_address)
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect((ip_address, port))
+    
+    return sock
+
     # NO MODIFICAR POR FUERA DE ESTA FUNCION
 
 
