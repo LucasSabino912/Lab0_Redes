@@ -3,20 +3,6 @@
 """
 hget: un cliente HTTP simple
 
-Escrito con fines didacticos por la catedra de
-Redes y Sistemas Distribuidos,
-FaMAF-UNC
-
-El proposito de este codigo es mostrar con un ejemplo concreto las primitivas
-basicas de comunicacion por sockets; no es para uso en produccion (para eso
-esta el modulo urllib de la biblioteca estandar de python que contiene un
-cliente HTTP mucho mas completo y correcto.
-Revision 2019 (a Python 3): Pablo Ventura
-Revision 2011: Eduardo Sanchez
-Original 2009-2010: Natalia Bidart, Daniel Moisset
-
-Constantes del modulo:
-
 >>> PREFIX
 'http://'
 >>> HTTP_PORT
@@ -87,11 +73,11 @@ def parse_server(url: str) -> str:
        ...
     AssertionError
     """
-    assert url.startswith(PREFIX)
+    assert url.startswith(PREFIX) # PREFIX: str = "http://"
     # Removemos el prefijo:
-    path = url[len(PREFIX):]
-    path_elements = path.split('/')
-    result = path_elements[0]
+    path = url[len(PREFIX):] # Recorto la URL, [n:] funciona como un slice en python
+    path_elements = path.split('/') # Separo las cosas que estan entre /
+    result = path_elements[0] # Me quedo con el primer argumento del path
     # Si la URL incluye puerto (ej. http://localhost:8080/), solo el hostname
     if ':' in result:
         result = result.split(':', 1)[0]
@@ -104,7 +90,7 @@ def parse_server(url: str) -> str:
 
 def parse_port(url: str) -> int:
     """
-    Obtiene el puerto de una URL. Si no se indica puerto, devuelve HTTP_PORT.
+    Obtiene el puerto de una URL. Si no se indica puerto, devuelve HTTP_PORT (80).
 
     >>> parse_port('http://localhost:8080/')
     8080
@@ -121,7 +107,7 @@ def parse_port(url: str) -> int:
     """
     assert url.startswith(PREFIX)
     path = url[len(PREFIX):]
-    segment = path.split('/')[0]
+    segment = path.split('/')[0] # Splitea la lista y se queda con el primer argumento
     if ':' in segment:
         return int(segment.split(':', 1)[1])
     return HTTP_PORT
@@ -129,6 +115,9 @@ def parse_port(url: str) -> int:
 
 def _dns_encode_name(hostname: str) -> bytes:
     """Codifica un hostname en formato QNAME (RFC 1035): etiquetas length+bytes.
+    Convierte un nombre de dominio al formato binario que entiende el protocolo DNS. 
+    El protocolo no manda el texto directamente sino que cada parte va precedida de su longitud. 
+    Por ejemplo a.b se convierte en \x01a\x01b\x00.
 
     >>> _dns_encode_name('localhost')[:1] == b'\\x09'  # len('localhost')=9
     True
@@ -275,17 +264,32 @@ def dns_resolve(hostname: str) -> str:
     # 2. Construir el mensaje de consulta con _dns_build_query(hostname, query_id).
     # 3. Crear socket UDP (AF_INET, SOCK_DGRAM), settimeout razonable, sendto(query, (DNS_SERVER, DNS_PORT)), recvfrom(512).
     # 4. Cerrar el socket y devolver _dns_parse_response(data, query_id) que extrae la IP del primer registro A.
-
-    query_id = random.randint(0, 65535)
+    
+    query_id = random.randint(0, 65595)
     query = _dns_build_query(hostname, query_id)
 
+
+    # Crea el socket. AF_INET significa que vas a usar IPv4. 
+    # SOCK_DGRAM significa UDP (datagrama, paquete suelto sin conexión). Si fuera TCP sería SOCK_STREAM.
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    
+    # Le decís al socket que si en 5 segundos no llegó respuesta, que tire una excepción en lugar de esperar para siempre
     sock.settimeout(5)
+
+    # Manda el mensaje DNS que construiste antes. Como UDP no tiene conexión, tenés que indicar el destino en cada envío: 
+    # (DNS_SERVER, DNS_PORT) es ("9.9.9.9", 53). Con TCP esto no hace falta porque ya está conectado.
     sock.sendto(query, (DNS_SERVER, DNS_PORT))
+    
+    # Espera y recibe la respuesta. Devuelve dos cosas: los datos y la dirección de quien respondió. Como la dirección 
+    # no nos importa la descartamos con _. El 512 es el máximo de bytes que querés recibir, que es el límite del protocolo DNS por UDP.
     data, _ = sock.recvfrom(512)
-    sock.close()
+    sock.close # Cierro el socket
 
     return _dns_parse_response(data, query_id)
+
+
+
+    raise NotImplementedError("Implementar cliente DNS (UDP, Quad9 9.9.9.9, RFC 1035).")
 
 
 def connect_to_server(server_name: str, port: int = HTTP_PORT) -> socket.socket:
@@ -315,7 +319,7 @@ def connect_to_server(server_name: str, port: int = HTTP_PORT) -> socket.socket:
     # Paso 1: resolver el nombre con dns_resolve(server_name) y guardar la IP en una variable.
     # Paso 2: imprimir en stderr "Hostname: ..." e "IP resuelta: ..." (el enunciado lo exige).
     # Paso 3: crear socket TCP (AF_INET, SOCK_STREAM), opcional settimeout, connect((ip_address, port)), devolver el socket.
-
+    
     ip_address = dns_resolve(server_name)
 
     sys.stderr.write("Hostname: %s\n" % server_name)
@@ -323,8 +327,13 @@ def connect_to_server(server_name: str, port: int = HTTP_PORT) -> socket.socket:
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect((ip_address, port))
-
+    
     return sock
+
+    # La diferencia clave con UDP: acá usás connect directamente con la IP y puerto, y después devolvés el socket conectado. 
+    # No hay sendto/recvfrom, el socket queda abierto para que el resto del programa lo use.
+
+
 
     # NO MODIFICAR POR FUERA DE ESTA FUNCION
 
